@@ -10,7 +10,7 @@ import threading
 
 # Importar funciones de otros archivos
 from config import PUERTO, HOST, CUENTAS_VALIDAS, MENSAJE_INICIO, MENSAJE_ERROR_PERMISOS, MENSAJE_DETENIDO
-from usuarios import validar_credenciales, registrar_sesion, obtener_sesiones_activas, cerrar_sesion
+from usuarios import validar_credenciales, registrar_sesion, obtener_sesiones_activas
 from paginas import PAGINA_LOGIN, PAGINA_EXITO, PAGINA_ERROR, PAGINA_404, PAGINA_ESTADO
 from http_handler import obtener_ip_cliente, parsear_peticion_http, parsear_formulario, enviar_respuesta_http
 from firewall import abrir_acceso_ip, cerrar_acceso_ip, listar_reglas_firewall, resetear_firewall

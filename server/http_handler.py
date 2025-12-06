@@ -99,29 +99,15 @@ def parsear_formulario(body):
     """
     datos = {}
     
-    if not body:
-        return datos
-    
-    # Limpiar espacios en blanco
-    body = body.strip()
-    
-    if not body:
-        return datos
-    
-    # Separar por &
-    try:
+    if body:
+        # Separar por &
         pares = body.split('&')
         
         for par in pares:
             if '=' in par:
                 # Separar clave y valor
                 clave, valor = par.split('=', 1)
-                # Limpiar espacios
-                clave = clave.strip()
-                valor = valor.strip()
                 datos[clave] = valor
-    except Exception as e:
-        print(f"   ⚠️  Error parseando formulario: {e}")
     
     return datos
 
