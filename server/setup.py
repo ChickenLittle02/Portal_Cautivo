@@ -241,8 +241,16 @@ def configurar_firewall():
     ejecutar("sudo iptables -A OUTPUT -p udp --dport 53 -j ACCEPT", "OUTPUT DNS")
     ejecutar("sudo iptables -A INPUT -p udp --sport 53 -j ACCEPT", "INPUT DNS")
     
-    # Habilitar IP Forward
-    print("\n7️⃣  Habilitando IP Forward...")
+    # Permitir OUTPUT hacia Internet (para que Linux tenga acceso)
+    print("\n7️⃣  Permitiendo OUTPUT hacia Internet...")
+    ejecutar(
+        f"sudo iptables -A OUTPUT -o {interfaz_internet} -j ACCEPT",
+        f"OUTPUT hacia {interfaz_internet} (Linux accede a Internet)"
+    )
+    ejecutar(
+        f"sudo iptables -A INPUT -i {interfaz_internet} -m state --state ESTABLISHED,RELATED -j ACCEPT",
+        f"INPUT desde {interfaz_internet} (respuestas para Linux)"
+    )
     ejecutar("sudo sysctl -w net.ipv4.ip_forward=1", "IP Forward activado")
     
     # Configurar NAT
@@ -254,18 +262,37 @@ def configurar_firewall():
     
     # Permitir FORWARD entre interfaces
     print("\n9️⃣  Permitiendo FORWARD entre interfaces...")
+    
+    # Obtener el rango de IP del hotspot
+    ip_hotspot = interfaces[interfaz_hotspot]
+    # Convertir 10.42.0.1 → 10.42.0.0/24
+    partes_ip = ip_hotspot.split('.')
+    ip_rango = f"{partes_ip[0]}.{partes_ip[1]}.{partes_ip[2]}.0/24"
+    
+    print(f"   (Rango del hotspot detectado: {ip_rango})")
+    
+    # FORWARD: Desde hotspot hacia Internet
     ejecutar(
         f"sudo iptables -A FORWARD -i {interfaz_hotspot} -o {interfaz_internet} -j ACCEPT",
-        f"FORWARD {interfaz_hotspot} → {interfaz_internet}"
-    )
-    ejecutar(
-        f"sudo iptables -A FORWARD -i {interfaz_internet} -o {interfaz_hotspot} -m state --state ESTABLISHED,RELATED -j ACCEPT",
-        f"FORWARD {interfaz_internet} → {interfaz_hotspot} (retorno)"
+        f"FORWARD {interfaz_hotspot} ({ip_rango}) → {interfaz_internet}"
     )
     
-    # IMPORTANTE: Permitir que las IPs autenticadas accedan a Internet
-    print("\n🔟 Configurando reglas para IPs autenticadas...")
-    print("   → Las reglas se agregarán automáticamente cuando usuarios inicien sesión")
+    # FORWARD: Respuestas desde Internet hacia hotspot
+    ejecutar(
+        f"sudo iptables -A FORWARD -i {interfaz_internet} -o {interfaz_hotspot} -m state --state ESTABLISHED,RELATED -j ACCEPT",
+        f"FORWARD {interfaz_internet} → {interfaz_hotspot} (respuestas)"
+    )
+    
+    # IMPORTANTE: Permitir que Linux SALGA hacia Internet (para su propio uso)
+    print(f"\n🔟 Permitiendo que Linux acceda a Internet...")
+    ejecutar(
+        f"sudo iptables -A FORWARD -o {interfaz_internet} -j ACCEPT",
+        f"FORWARD cualquier origen → {interfaz_internet} (para Linux)"
+    )
+    ejecutar(
+        f"sudo iptables -A FORWARD -i {interfaz_internet} -m state --state ESTABLISHED,RELATED -j ACCEPT",
+        f"FORWARD {interfaz_internet} → cualquier destino (respuestas)"
+    )
     
     # 5. Mostrar resultado
     print("\n" + "="*60)
