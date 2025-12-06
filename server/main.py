@@ -59,7 +59,10 @@ def manejar_cliente(socket_cliente, direccion_cliente):
             usuario = formulario.get('usuario', '')
             password = formulario.get('password', '')
             
-            print(f"   → Intento de login: usuario='{usuario}'")
+            print(f"   📋 Formulario recibido: {formulario}")
+            print(f"   → Usuario: '{usuario}'")
+            print(f"   → Password: '{password}'")
+            print(f"   → IP Cliente: {ip_cliente}")
             
             # Validar credenciales
             if validar_credenciales(usuario, password):
@@ -68,11 +71,16 @@ def manejar_cliente(socket_cliente, direccion_cliente):
                 
                 # NUEVO: Abrir acceso en firewall
                 print(f"   🔓 Abriendo acceso en firewall para {ip_cliente}")
-                abrir_acceso_ip(ip_cliente)
+                resultado_firewall = abrir_acceso_ip(ip_cliente)
+                if resultado_firewall:
+                    print(f"   ✅ Firewall actualizado correctamente")
+                else:
+                    print(f"   ❌ ERROR al actualizar firewall")
                 
                 enviar_respuesta_http(socket_cliente, "200 OK", "text/html", PAGINA_EXITO)
             else:
                 print(f"   ❌ INVÁLIDO - Credenciales rechazadas")
+                print(f"      Usuario '{usuario}' no encontrado o password incorrecto")
                 enviar_respuesta_http(socket_cliente, "401 Unauthorized", "text/html", PAGINA_ERROR)
         
         # RUTA 3: GET /status -> Ver sesiones activas (para DEBUG)

@@ -52,12 +52,13 @@ def ejecutar_comando(comando):
         - error (str): Mensaje de error si falló
     """
     try:
-        # Ejecutar el comando
+        # Ejecutar el comando CON TIMEOUT (5 segundos)
         resultado = subprocess.run(
             comando,
             shell=True,
             capture_output=True,
-            text=True
+            text=True,
+            timeout=5  # ← IMPORTANTE: Evita que se bloquee
         )
         
         # Verificar si funcionó
@@ -66,6 +67,8 @@ def ejecutar_comando(comando):
         else:
             return False, resultado.stdout, resultado.stderr
     
+    except subprocess.TimeoutExpired:
+        return False, "", "Comando expiró (timeout)"
     except Exception as error:
         return False, "", str(error)
 
