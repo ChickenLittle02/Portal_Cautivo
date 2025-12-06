@@ -210,7 +210,7 @@ def configurar_firewall():
     
     # Limpiar iptables anterior
     print("\n1️⃣  Limpiando configuración anterior...")
-    ejecutar("sudo iptables -F", "Limpiando INPUT")
+    ejecutar("sudo iptables -F INPUT", "Limpiando INPUT")
     ejecutar("sudo iptables -F FORWARD", "Limpiando FORWARD")
     ejecutar("sudo iptables -F OUTPUT", "Limpiando OUTPUT")
     ejecutar("sudo iptables -t nat -F", "Limpiando NAT")
@@ -262,6 +262,10 @@ def configurar_firewall():
         f"sudo iptables -A FORWARD -i {interfaz_internet} -o {interfaz_hotspot} -m state --state ESTABLISHED,RELATED -j ACCEPT",
         f"FORWARD {interfaz_internet} → {interfaz_hotspot} (retorno)"
     )
+    
+    ejecutar(
+        f"sudo iptables -A FORWARD -i lo -j ACCEPT",
+        f"OUTPUT hacia Internet")
     
     # IMPORTANTE: Permitir que las IPs autenticadas accedan a Internet
     print("\n🔟 Configurando reglas para IPs autenticadas...")
