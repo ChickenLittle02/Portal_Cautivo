@@ -5,6 +5,8 @@ Maneja comandos iptables para abrir/cerrar acceso a IPs autenticadas
 
 import subprocess
 import os
+import sys
+import platform
 
 # =========================================================
 # VERIFICAR SI SE EJECUTA CON PERMISOS SUDO
@@ -12,12 +14,25 @@ import os
 
 def tiene_permisos_sudo():
     """
-    Verifica si el script se ejecuta como root (necesario para iptables)
+    Verifica si el script se ejecuta como root (Linux/Mac) o admin (Windows)
     
     Retorna:
-        bool: True si es root, False si no
+        bool: True si tiene permisos, False si no
     """
-    return os.geteuid() == 0
+    # Si estamos en Windows
+    if platform.system() == "Windows":
+        try:
+            import ctypes
+            return ctypes.windll.shell.IsUserAnAdmin() != 0
+        except:
+            return False
+    
+    # Si estamos en Linux/Mac
+    else:
+        try:
+            return os.geteuid() == 0
+        except:
+            return False
 
 
 # =========================================================
@@ -67,7 +82,7 @@ def abrir_acceso_ip(ip_cliente):
     Comando que ejecuta:
     iptables -A FORWARD -s <IP> -j ACCEPT
     
-    Esto permite que la IP acceda a Internet
+    Esto permite que la IP acceda a Internet (TCP, UDP, todo)
     
     Argumentos:
         ip_cliente (str): La IP a autorizar (ej: "192.168.1.100")
@@ -94,6 +109,18 @@ def abrir_acceso_ip(ip_cliente):
     
     if exito:
         print(f"   ✅ Acceso abierto para {ip_cliente}")
+        
+        # TAMBIÉN permitir respuestas desde Internet hacia esa IP
+        # (necesario para que funcione TCP bidireccional)
+        comando_retorno = f"iptables -A FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
+        print(f"   🔓 Permitiendo respuestas: {comando_retorno}")
+        exito_retorno, _, error_retorno = ejecutar_comando(comando_retorno)
+        
+        if exito_retorno:
+            print(f"   ✅ Respuestas permitidas para {ip_cliente}")
+        else:
+            print(f"   ⚠️  Error al permitir respuestas: {error_retorno}")
+        
         return True
     else:
         print(f"   ❌ Error al abrir acceso: {error}")
@@ -138,6 +165,17 @@ def cerrar_acceso_ip(ip_cliente):
     
     if exito:
         print(f"   ✅ Acceso cerrado para {ip_cliente}")
+        
+        # TAMBIÉN eliminar la regla de respuestas
+        comando_retorno = f"iptables -D FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
+        print(f"   🔒 Cerrando respuestas: {comando_retorno}")
+        exito_retorno, _, error_retorno = ejecutar_comando(comando_retorno)
+        
+        if exito_retorno:
+            print(f"   ✅ Respuestas cerradas para {ip_cliente}")
+        else:
+            print(f"   ⚠️  No se pudo cerrar respuestas (posiblemente no existe)")
+        
         return True
     else:
         print(f"   ⚠️  No se pudo cerrar acceso (posiblemente no existe): {error}")

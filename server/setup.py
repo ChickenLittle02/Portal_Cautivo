@@ -263,6 +263,10 @@ def configurar_firewall():
         f"FORWARD {interfaz_internet} → {interfaz_hotspot} (retorno)"
     )
     
+    # IMPORTANTE: Permitir que las IPs autenticadas accedan a Internet
+    print("\n🔟 Configurando reglas para IPs autenticadas...")
+    print("   → Las reglas se agregarán automáticamente cuando usuarios inicien sesión")
+    
     # 5. Mostrar resultado
     print("\n" + "="*60)
     print("✅ CONFIGURACIÓN COMPLETADA")
