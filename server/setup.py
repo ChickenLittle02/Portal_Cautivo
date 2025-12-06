@@ -113,34 +113,92 @@ def configurar_firewall():
     print("\n⚙️  CONFIGURACIÓN:")
     print("   Estas interfaces serán configuradas como router")
     
+    # Crear lista de interfaces para seleccionar
+    lista_interfaces = list(interfaces.items())
+    
     interfaz_hotspot = None
     interfaz_internet = None
     
-    # Intentar detectar automáticamente
-    # (interfaces que comienzan con 'wl' probablemente son WiFi)
-    for interfaz, ip in interfaces.items():
-        if interfaz.startswith('wl'):
-            interfaz_hotspot = interfaz
-        else:
-            interfaz_internet = interfaz
+    print("\n" + "="*60)
+    print("📡 SELECCIONA LAS INTERFACES DE RED")
+    print("="*60)
     
-    if not interfaz_hotspot or not interfaz_internet:
-        print("\n⚠️  No se pudo detectar automáticamente")
-        print("\n¿Cuál es la interfaz del WiFi hotspot?")
-        for interfaz in interfaces.keys():
-            print(f"   {interfaz}: {interfaces[interfaz]}")
-        interfaz_hotspot = input("Escribe el nombre: ").strip()
-        
-        print("\n¿Cuál es la interfaz de Internet?")
-        for interfaz in interfaces.keys():
-            if interfaz != interfaz_hotspot:
-                print(f"   {interfaz}: {interfaces[interfaz]}")
-        interfaz_internet = input("Escribe el nombre: ").strip()
+    print("\n🔹 INTERFACES DISPONIBLES:")
+    for i, (interfaz, ip) in enumerate(lista_interfaces, 1):
+        print(f"\n   {i}. {interfaz}")
+        print(f"      IP: {ip}")
     
-    print(f"\n   Hotspot: {interfaz_hotspot}")
-    print(f"   Internet: {interfaz_internet}")
+    # Seleccionar HOTSPOT
+    print("\n" + "-"*60)
+    print("1️⃣  ¿CUÁL ES EL HOTSPOT?")
+    print("   (La que Windows usa para conectarse)")
+    print("   (Probablemente sea wlo1 o similar)")
+    print("-"*60)
     
-    confirmacion = input("\n¿Confirmar? (s/n): ").strip().lower()
+    while True:
+        try:
+            opcion = int(input("\n   Escribe el número: ").strip())
+            if 1 <= opcion <= len(lista_interfaces):
+                interfaz_hotspot = lista_interfaces[opcion - 1][0]
+                print(f"   ✅ Hotspot seleccionado: {interfaz_hotspot}")
+                break
+            else:
+                print(f"   ❌ Opción inválida (1-{len(lista_interfaces)})")
+        except ValueError:
+            print("   ❌ Ingresa un número válido")
+    
+    # Seleccionar INTERNET
+    print("\n" + "-"*60)
+    print("2️⃣  ¿CUÁL ES LA INTERFAZ DE INTERNET?")
+    print("   (La que recibe Internet desde tu teléfono/router)")
+    print("   (Probablemente sea enx... o eth0)")
+    print("-"*60)
+    
+    print("\n   OPCIONES:")
+    opciones_validas = []
+    for i, (interfaz, ip) in enumerate(lista_interfaces, 1):
+        if interfaz != interfaz_hotspot:  # No mostrar la que ya seleccionó
+            opciones_validas.append((i, interfaz))
+            print(f"   {i}. {interfaz} ({ip})")
+    
+    while True:
+        try:
+            opcion = int(input("\n   Escribe el número: ").strip())
+            # Buscar en opciones válidas
+            for num, interfaz in opciones_validas:
+                if opcion == num:
+                    interfaz_internet = interfaz
+                    print(f"   ✅ Internet seleccionado: {interfaz_internet}")
+                    break
+            if interfaz_internet:
+                break
+            else:
+                print(f"   ❌ Opción inválida")
+        except ValueError:
+            print("   ❌ Ingresa un número válido")
+    
+    # Resumen visual
+    print("\n" + "="*60)
+    print("✅ RESUMEN DE CONFIGURACIÓN")
+    print("="*60)
+    
+    print(f"\n📡 INTERFACES SELECCIONADAS:")
+    print(f"\n   🔹 HOTSPOT (Windows se conecta aquí):")
+    print(f"      {interfaz_hotspot} ({interfaces[interfaz_hotspot]})")
+    print(f"\n   🔹 INTERNET (Desde tu teléfono/router):")
+    print(f"      {interfaz_internet} ({interfaces[interfaz_internet]})")
+    
+    print("\n📊 FLUJO DE DATOS:")
+    print(f"\n   Windows")
+    print(f"      ↓")
+    print(f"   {interfaz_hotspot} (Hotspot)")
+    print(f"      ↓ [NAT Router]")
+    print(f"   {interfaz_internet} (Internet)")
+    print(f"      ↓")
+    print(f"   Tu teléfono / Router")
+    
+    print("\n" + "="*60)
+    confirmacion = input("¿Confirmar esta configuración? (s/n): ").strip().lower()
     if confirmacion != 's':
         print("Cancelado")
         sys.exit(0)
