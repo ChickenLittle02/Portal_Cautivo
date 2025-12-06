@@ -85,8 +85,6 @@ def obtener_sesiones_activas():
     """
     with sesiones_lock:
         return dict(sesiones_activas)
-
-
 # =========================================================
 # FUNCIÓN 5: ELIMINAR UNA SESIÓN
 # =========================================================
@@ -103,3 +101,5 @@ def cerrar_sesion(ip_cliente):
         if ip_cliente in sesiones_activas:
             del sesiones_activas[ip_cliente]
             print(f"🔴 Sesión cerrada para {ip_cliente}")
+        else:
+            print(f"⚠️  {ip_cliente} no tenía sesión activa")

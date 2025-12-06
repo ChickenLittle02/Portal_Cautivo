@@ -5,7 +5,6 @@ Maneja comandos iptables para abrir/cerrar acceso a IPs autenticadas
 
 import subprocess
 import os
-import sys
 import platform
 
 # =========================================================
@@ -72,6 +71,28 @@ def ejecutar_comando(comando):
 
 
 # =========================================================
+# FUNCIÓN: VERIFICAR SI UNA IP YA ESTÁ AUTORIZADA
+# =========================================================
+
+def ip_ya_autorizada(ip_cliente):
+    """
+    Verifica si la IP ya tiene una regla en FORWARD
+    
+    Argumentos:
+        ip_cliente (str): IP a verificar
+    
+    Retorna:
+        bool: True si ya está autorizada, False si no
+    """
+    # Ejecutar: iptables -L FORWARD -n | grep <IP>
+    comando = f"iptables -L FORWARD -n | grep '{ip_cliente}'"
+    exito, salida, _ = ejecutar_comando(comando)
+    
+    # Si grep encuentra algo, retorna True
+    return exito and salida.strip() != ""
+
+
+# =========================================================
 # FUNCIÓN 1: ABRIR ACCESO A UNA IP
 # =========================================================
 
@@ -79,10 +100,12 @@ def abrir_acceso_ip(ip_cliente):
     """
     Ejecuta comando iptables para PERMITIR tráfico desde una IP
     
-    Comando que ejecuta:
-    iptables -A FORWARD -s <IP> -j ACCEPT
+    Agrega DOS reglas:
+    1. iptables -A FORWARD -s <IP> -j ACCEPT
+       (Permite que la IP salga hacia Internet)
     
-    Esto permite que la IP acceda a Internet (TCP, UDP, todo)
+    2. iptables -A FORWARD -d <IP> -m state --state ESTABLISHED,RELATED -j ACCEPT
+       (Permite que las respuestas regresen)
     
     Argumentos:
         ip_cliente (str): La IP a autorizar (ej: "192.168.1.100")
@@ -96,35 +119,35 @@ def abrir_acceso_ip(ip_cliente):
         print(f"   ❌ ERROR: Se necesita sudo para ejecutar iptables")
         return False
     
-    # Comando a ejecutar
-    # -A = Agregar regla
-    # FORWARD = Cadena de reenvío (tráfico entre redes)
-    # -s = Source (IP origen)
-    # -j ACCEPT = Jump to ACCEPT (permitir tráfico)
-    comando = f"iptables -A FORWARD -s {ip_cliente} -j ACCEPT"
-    
-    print(f"   🔓 Ejecutando: {comando}")
-    
-    exito, salida, error = ejecutar_comando(comando)
-    
-    if exito:
-        print(f"   ✅ Acceso abierto para {ip_cliente}")
-        
-        # TAMBIÉN permitir respuestas desde Internet hacia esa IP
-        # (necesario para que funcione TCP bidireccional)
-        comando_retorno = f"iptables -A FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
-        print(f"   🔓 Permitiendo respuestas: {comando_retorno}")
-        exito_retorno, _, error_retorno = ejecutar_comando(comando_retorno)
-        
-        if exito_retorno:
-            print(f"   ✅ Respuestas permitidas para {ip_cliente}")
-        else:
-            print(f"   ⚠️  Error al permitir respuestas: {error_retorno}")
-        
+    # IMPORTANTE: Verificar que la IP no esté ya autorizada
+    if ip_ya_autorizada(ip_cliente):
+        print(f"   ⚠️  IP {ip_cliente} YA ESTÁ AUTORIZADA (evitando duplicado)")
         return True
-    else:
-        print(f"   ❌ Error al abrir acceso: {error}")
+    
+    print(f"   🔓 Autorizando IP {ip_cliente}...")
+    
+    # REGLA 1: Permitir salida (IP → Internet)
+    comando1 = f"iptables -A FORWARD -s {ip_cliente} -j ACCEPT"
+    print(f"      → {comando1}")
+    
+    exito1, _, error1 = ejecutar_comando(comando1)
+    
+    if not exito1:
+        print(f"   ❌ Error al abrir acceso de salida: {error1}")
         return False
+    
+    # REGLA 2: Permitir respuestas (Internet → IP)
+    comando2 = f"iptables -A FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
+    print(f"      → {comando2}")
+    
+    exito2, _, error2 = ejecutar_comando(comando2)
+    
+    if not exito2:
+        print(f"   ⚠️  Error al permitir respuestas (continuando): {error2}")
+        # No retornamos False aquí porque la regla 1 ya funcionó
+    
+    print(f"   ✅ IP {ip_cliente} AUTORIZADA")
+    return True
 
 
 # =========================================================
@@ -135,10 +158,9 @@ def cerrar_acceso_ip(ip_cliente):
     """
     Ejecuta comando iptables para DENEGAR tráfico desde una IP
     
-    Comando que ejecuta:
-    iptables -D FORWARD -s <IP> -j ACCEPT
-    
-    Esto cierra el acceso a Internet para esa IP
+    Elimina DOS reglas:
+    1. iptables -D FORWARD -s <IP> -j ACCEPT
+    2. iptables -D FORWARD -d <IP> -m state --state ESTABLISHED,RELATED -j ACCEPT
     
     Argumentos:
         ip_cliente (str): La IP a bloquear (ej: "192.168.1.100")
@@ -152,34 +174,33 @@ def cerrar_acceso_ip(ip_cliente):
         print(f"   ❌ ERROR: Se necesita sudo para ejecutar iptables")
         return False
     
-    # Comando a ejecutar
-    # -D = Eliminar regla
-    # FORWARD = Cadena de reenvío
-    # -s = Source (IP origen)
-    # -j ACCEPT = Que antes permitía
-    comando = f"iptables -D FORWARD -s {ip_cliente} -j ACCEPT"
-    
-    print(f"   🔒 Ejecutando: {comando}")
-    
-    exito, salida, error = ejecutar_comando(comando)
-    
-    if exito:
-        print(f"   ✅ Acceso cerrado para {ip_cliente}")
-        
-        # TAMBIÉN eliminar la regla de respuestas
-        comando_retorno = f"iptables -D FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
-        print(f"   🔒 Cerrando respuestas: {comando_retorno}")
-        exito_retorno, _, error_retorno = ejecutar_comando(comando_retorno)
-        
-        if exito_retorno:
-            print(f"   ✅ Respuestas cerradas para {ip_cliente}")
-        else:
-            print(f"   ⚠️  No se pudo cerrar respuestas (posiblemente no existe)")
-        
+    # IMPORTANTE: Verificar que la IP esté autorizada
+    if not ip_ya_autorizada(ip_cliente):
+        print(f"   ⚠️  IP {ip_cliente} NO está autorizada (nada que borrar)")
         return True
-    else:
-        print(f"   ⚠️  No se pudo cerrar acceso (posiblemente no existe): {error}")
-        return False
+    
+    print(f"   🔒 Bloqueando IP {ip_cliente}...")
+    
+    # REGLA 1: Eliminar salida (IP → Internet)
+    comando1 = f"iptables -D FORWARD -s {ip_cliente} -j ACCEPT"
+    print(f"      → {comando1}")
+    
+    exito1, _, error1 = ejecutar_comando(comando1)
+    
+    if not exito1:
+        print(f"   ⚠️  Error al eliminar regla de salida: {error1}")
+    
+    # REGLA 2: Eliminar respuestas (Internet → IP)
+    comando2 = f"iptables -D FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
+    print(f"      → {comando2}")
+    
+    exito2, _, error2 = ejecutar_comando(comando2)
+    
+    if not exito2:
+        print(f"   ⚠️  Error al eliminar regla de respuestas: {error2}")
+    
+    print(f"   ✅ IP {ip_cliente} BLOQUEADA")
+    return True
 
 
 # =========================================================
@@ -217,10 +238,6 @@ def bloquear_todo_trafico():
     """
     Configura iptables para bloquear TODO el tráfico de la red local
     (excepto al puerto 80 del gateway, que maneja tu compañero)
-    
-    Comandos que ejecuta:
-    1. iptables -A FORWARD -j DROP  (bloquear todo)
-    2. iptables -A FORWARD -d <gateway_port_80> -j ACCEPT (permitir login)
     
     Retorna:
         bool: True si funcionó, False si falló
