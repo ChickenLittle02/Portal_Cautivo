@@ -269,88 +269,156 @@ def generar_panel_admin(usuarios, sesiones):
         </table>
     </div>
 
+
     <script>
-        function mostrarMensaje(texto, tipo) {{
-            const div = document.getElementById('mensaje');
-            div.textContent = texto;
-            div.className = 'mensaje ' + tipo;
-            setTimeout(() => {{
-                div.className = 'mensaje';
-            }}, 5000);
-        }}
+    function mostrarMensaje(texto, tipo) {{
+        const div = document.getElementById('mensaje');
+        div.textContent = texto;
+        div.className = 'mensaje ' + tipo;
+        setTimeout(() => {{
+            div.className = 'mensaje';
+        }}, 5000);
+    }}
 
-        async function agregarUsuario(event) {{
-            event.preventDefault();
-            
-            const formData = new FormData(event.target);
-            const data = Object.fromEntries(formData);
-            
-            try {{
-                const response = await fetch('/admin/add_user', {{
-                    method: 'POST',
-                    headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
-                    body: new URLSearchParams(data)
-                }});
-                
-                const result = await response.json();
-                
-                if (result.success) {{
-                    mostrarMensaje('✅ ' + result.message, 'exito');
-                    setTimeout(() => location.reload(), 1500);
-                }} else {{
-                    mostrarMensaje('❌ ' + result.message, 'error');
-                }}
-            }} catch (error) {{
-                mostrarMensaje('❌ Error al crear usuario', 'error');
-            }}
+    async function agregarUsuario(event) {{
+        event.preventDefault();
+        
+        const usuario = document.getElementById('nuevoUsuario').value.trim();
+        const password = document.getElementById('nuevoPassword').value.trim();
+        const role = document.getElementById('nuevoRole').value.trim();
+        
+        if (!usuario || !password) {{
+            mostrarMensaje('❌ Usuario y contraseña son requeridos', 'error');
+            return;
         }}
+        
+        console.log('Enviando:', {{usuario, password: '***', role}});
+        
+        try {{
+            const params = new URLSearchParams();
+            params.append('usuario', usuario);
+            params.append('password', password);
+            params.append('role', role);
+            
+            const response = await fetch('/admin/add_user', {{
+                method: 'POST',
+                headers: {{
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }},
+                body: params.toString()
+            }});
+            
+            console.log('Response status:', response.status);
+            const text = await response.text();
+            console.log('Response text:', text);
+            
+            let result;
+            try {{
+                result = JSON.parse(text);
+            }} catch (e) {{
+                console.error('Error parsing JSON:', e);
+                mostrarMensaje('❌ Error al procesar respuesta del servidor', 'error');
+                return;
+            }}
+            
+            if (result.success) {{
+                mostrarMensaje('✅ ' + result.message, 'exito');
+                document.getElementById('formAgregar').reset();
+                setTimeout(() => location.reload(), 1500);
+            }} else {{
+                mostrarMensaje('❌ ' + result.message, 'error');
+            }}
+        }} catch (error) {{
+            console.error('Error:', error);
+            mostrarMensaje('❌ Error al crear usuario: ' + error.message, 'error');
+        }}
+    }}
 
-        async function eliminarUsuario(username) {{
-            if (!confirm('¿Eliminar usuario "' + username + '"?')) return;
+    async function eliminarUsuario(username) {{
+        if (!confirm('¿Eliminar usuario \"' + username + '\"?')) return;
+        
+        console.log('Eliminando usuario:', username);
+        
+        try {{
+            const params = new URLSearchParams();
+            params.append('usuario', username);
             
+            const response = await fetch('/admin/delete_user', {{
+                method: 'POST',
+                headers: {{
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }},
+                body: params.toString()
+            }});
+            
+            console.log('Response status:', response.status);
+            const text = await response.text();
+            console.log('Response text:', text);
+            
+            let result;
             try {{
-                const response = await fetch('/admin/delete_user', {{
-                    method: 'POST',
-                    headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
-                    body: new URLSearchParams({{usuario: username}})
-                }});
-                
-                const result = await response.json();
-                
-                if (result.success) {{
-                    mostrarMensaje('✅ ' + result.message, 'exito');
-                    setTimeout(() => location.reload(), 1500);
-                }} else {{
-                    mostrarMensaje('❌ ' + result.message, 'error');
-                }}
-            }} catch (error) {{
-                mostrarMensaje('❌ Error al eliminar usuario', 'error');
+                result = JSON.parse(text);
+            }} catch (e) {{
+                console.error('Error parsing JSON:', e);
+                mostrarMensaje('❌ Error al procesar respuesta del servidor', 'error');
+                return;
             }}
+            
+            if (result.success) {{
+                mostrarMensaje('✅ ' + result.message, 'exito');
+                setTimeout(() => location.reload(), 1500);
+            }} else {{
+                mostrarMensaje('❌ ' + result.message, 'error');
+            }}
+        }} catch (error) {{
+            console.error('Error:', error);
+            mostrarMensaje('❌ Error al eliminar usuario: ' + error.message, 'error');
         }}
+    }}
 
-        async function desconectarIP(ip) {{
-            if (!confirm('¿Desconectar IP "' + ip + '"?')) return;
+    async function desconectarIP(ip) {{
+        if (!confirm('¿Desconectar IP \"' + ip + '\"?')) return;
+        
+        console.log('Desconectando IP:', ip);
+        
+        try {{
+            const params = new URLSearchParams();
+            params.append('ip', ip);
             
+            const response = await fetch('/admin/disconnect_ip', {{
+                method: 'POST',
+                headers: {{
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }},
+                body: params.toString()
+            }});
+            
+            console.log('Response status:', response.status);
+            const text = await response.text();
+            console.log('Response text:', text);
+            
+            let result;
             try {{
-                const response = await fetch('/admin/disconnect_ip', {{
-                    method: 'POST',
-                    headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
-                    body: new URLSearchParams({{ip: ip}})
-                }});
-                
-                const result = await response.json();
-                
-                if (result.success) {{
-                    mostrarMensaje('✅ ' + result.message, 'exito');
-                    setTimeout(() => location.reload(), 1500);
-                }} else {{
-                    mostrarMensaje('❌ ' + result.message, 'error');
-                }}
-            }} catch (error) {{
-                mostrarMensaje('❌ Error al desconectar IP', 'error');
+                result = JSON.parse(text);
+            }} catch (e) {{
+                console.error('Error parsing JSON:', e);
+                mostrarMensaje('❌ Error al procesar respuesta del servidor', 'error');
+                return;
             }}
+            
+            if (result.success) {{
+                mostrarMensaje('✅ ' + result.message, 'exito');
+                setTimeout(() => location.reload(), 1500);
+            }} else {{
+                mostrarMensaje('❌ ' + result.message, 'error');
+            }}
+        }} catch (error) {{
+            console.error('Error:', error);
+            mostrarMensaje('❌ Error al desconectar IP: ' + error.message, 'error');
         }}
-    </script>
+    }}
+</script>
+
 </body>
 </html>"""
 

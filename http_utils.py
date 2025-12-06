@@ -67,3 +67,19 @@ Connection: close
 
 {contenido}"""
     socket_cliente.sendall(respuesta.encode('utf-8'))
+
+# =========================================================
+# FUNCIÓN: ENVIAR RESPUESTA JSON
+# =========================================================
+
+def enviar_json(socket_cliente, data):
+    """Envía respuesta JSON"""
+    import json
+    contenido = json.dumps(data)
+    respuesta = f"""HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: {len(contenido)}
+Connection: close
+
+{contenido}"""
+    socket_cliente.sendall(respuesta.encode('utf-8'))

@@ -5,28 +5,13 @@ Ahora incluye panel de administración y gestión de usuarios
 """
 
 import json
-from http_utils import obtener_ip_cliente, parsear_peticion, parsear_formulario, enviar_respuesta
+from http_utils import obtener_ip_cliente, parsear_peticion, parsear_formulario, enviar_respuesta, enviar_json
 from html_templates import HTML_LOGIN, HTML_EXITO, HTML_ERROR, HTML_LOGOUT
 from admin_templates import generar_panel_admin, HTML_ACCESS_DENIED
 from auth import validar_credenciales, obtener_rol, registrar_sesion, cerrar_sesion, es_admin, obtener_usuario_ip
 from firewall import autorizar_ip, desautorizar_ip
 from config import sesiones_activas, sesiones_lock
 from user_manager import agregar_usuario, eliminar_usuario, listar_usuarios
-
-# =========================================================
-# FUNCIÓN: ENVIAR RESPUESTA JSON
-# =========================================================
-
-def enviar_json(socket_cliente, data):
-    """Envía respuesta JSON"""
-    contenido = json.dumps(data)
-    respuesta = f"""HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-Content-Length: {len(contenido)}
-Connection: close
-
-{contenido}"""
-    socket_cliente.sendall(respuesta.encode('utf-8'))
 
 # =========================================================
 # FUNCIÓN: MANEJAR CLIENTE
@@ -92,45 +77,76 @@ def manejar_cliente(socket_cliente, direccion):
         elif metodo == "POST" and ruta == "/admin/add_user":
             print(f"   → Admin: Agregar usuario")
             if not es_admin(ip_cliente):
+                print(f"   ❌ Acceso denegado (no es admin)")
                 enviar_json(socket_cliente, {"success": False, "message": "Acceso denegado"})
                 return
             
             formulario = parsear_formulario(body)
-            usuario = formulario.get('usuario', '')
-            password = formulario.get('password', '')
-            role = formulario.get('role', 'user')
+            usuario = formulario.get('usuario', '').strip()
+            password = formulario.get('password', '').strip()
+            role = formulario.get('role', 'user').strip()
+            
+            print(f"   → Datos: usuario='{usuario}', role='{role}'")
+            
+            if not usuario or not password:
+                print(f"   ❌ Datos incompletos")
+                enviar_json(socket_cliente, {"success": False, "message": "Usuario y contraseña son requeridos"})
+                return
             
             exito, mensaje = agregar_usuario(usuario, password, role)
+            print(f"   → Resultado: {exito} - {mensaje}")
             enviar_json(socket_cliente, {"success": exito, "message": mensaje})
         
         # RUTA: POST /admin/delete_user (eliminar usuario desde panel)
         elif metodo == "POST" and ruta == "/admin/delete_user":
             print(f"   → Admin: Eliminar usuario")
             if not es_admin(ip_cliente):
+                print(f"   ❌ Acceso denegado (no es admin)")
                 enviar_json(socket_cliente, {"success": False, "message": "Acceso denegado"})
                 return
             
             formulario = parsear_formulario(body)
-            usuario = formulario.get('usuario', '')
+            usuario = formulario.get('usuario', '').strip()
+            
+            print(f"   → Usuario a eliminar: '{usuario}'")
+            
+            if not usuario:
+                print(f"   ❌ Usuario vacío")
+                enviar_json(socket_cliente, {"success": False, "message": "Usuario requerido"})
+                return
             
             exito, mensaje = eliminar_usuario(usuario)
+            print(f"   → Resultado: {exito} - {mensaje}")
             enviar_json(socket_cliente, {"success": exito, "message": mensaje})
         
         # RUTA: POST /admin/disconnect_ip (desconectar IP desde panel)
         elif metodo == "POST" and ruta == "/admin/disconnect_ip":
             print(f"   → Admin: Desconectar IP")
             if not es_admin(ip_cliente):
+                print(f"   ❌ Acceso denegado (no es admin)")
                 enviar_json(socket_cliente, {"success": False, "message": "Acceso denegado"})
                 return
             
             formulario = parsear_formulario(body)
-            ip = formulario.get('ip', '')
+            ip = formulario.get('ip', '').strip()
             
-            if ip in sesiones_activas:
+            print(f"   → IP a desconectar: '{ip}'")
+            
+            if not ip:
+                print(f"   ❌ IP vacía")
+                enviar_json(socket_cliente, {"success": False, "message": "IP requerida"})
+                return
+            
+            with sesiones_lock:
+                existe = ip in sesiones_activas
+            
+            if existe:
                 cerrar_sesion(ip)
                 desautorizar_ip(ip)
+                print(f"   ✅ IP desconectada")
                 enviar_json(socket_cliente, {"success": True, "message": f"IP {ip} desconectada"})
             else:
+                print(f"   ❌ IP no encontrada")
                 enviar_json(socket_cliente, {"success": False, "message": "IP no encontrada"})
         
         # RUTA: GET /status (ver sesiones - debug)
