@@ -32,7 +32,12 @@ HTML_LOGIN = """<!DOCTYPE html>
             <button type="submit">Iniciar Sesión</button>
         </form>
         <p style="text-align: center; font-size: 12px; color: #666;">
-            Prueba: admin / 123456
+            Usuario por defecto: admin / 123456
+        </p>
+        <p style="text-align: center; margin-top: 15px;">
+            <a href="/admin" style="color: #007bff; text-decoration: none; font-size: 12px;">
+                🔐 Panel de Administración
+            </a>
         </p>
     </div>
 </body>
@@ -58,7 +63,18 @@ HTML_EXITO = """<!DOCTYPE html>
         <h1>✅ ¡Acceso Permitido!</h1>
         <p>Tu IP ha sido autorizada en el firewall.</p>
         <p>Ahora puedes acceder a Internet.</p>
-        <p><a href="/logout">Cerrar Sesión</a></p>
+        <p style="margin-top: 20px;">
+            <a href="/admin" style="display: inline-block; padding: 10px 20px; 
+                                     background: #007bff; color: white; text-decoration: none; 
+                                     border-radius: 4px; margin-right: 10px;">
+                🔐 Panel Admin
+            </a>
+            <a href="/logout" style="display: inline-block; padding: 10px 20px; 
+                                      background: #dc3545; color: white; text-decoration: none; 
+                                      border-radius: 4px;">
+                🚪 Cerrar Sesión
+            </a>
+        </p>
     </div>
 </body>
 </html>"""
