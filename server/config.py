@@ -1,50 +1,32 @@
 """
 config.py
-Configuración centralizada del Portal Cautivo
+Almacena todas las configuraciones del Portal Cautivo
 """
-
-# =========================================================
-# CUENTAS VÁLIDAS (usuario -> contraseña)
-# =========================================================
-CUENTAS_VALIDAS = {
-    "admin": "123456",
-    "user1": "pass1",
-    "usuario": "password"
-}
 
 # =========================================================
 # CONFIGURACIÓN DEL SERVIDOR
 # =========================================================
-
-# Puerto donde escucha el servidor HTTP
-PUERTO_HTTP = 80
-
-# Interfaz donde escuchar (0.0.0.0 = todas)
-HOST = "0.0.0.0"
-
-# Máximo de conexiones simultáneas
-MAX_CONEXIONES = 5
+PUERTO = 80
+HOST = '0.0.0.0'
 
 # =========================================================
-# CONFIGURACIÓN DEL FIREWALL
+# CUENTAS DE USUARIO
 # =========================================================
-
-# IP de la puerta de enlace (gateway)
-# Si no lo sabes, puedes dejarlo vacío y auto-detectar
-GATEWAY = ""
-
-# Interfaz del hotspot (se auto-detecta en setup.py)
-INTERFAZ_HOTSPOT = "wlo1"
-
-# Interfaz de Internet (se auto-detecta en setup.py)
-INTERFAZ_INTERNET = "eth0"
+CUENTAS_VALIDAS = {
+    "admin": "123456",
+    "user1": "pass1",
+    "juan": "juan123"
+}
 
 # =========================================================
-# CONFIGURACIÓN DE LOGGING
+# MENSAJES
 # =========================================================
+MENSAJE_INICIO = """
+🚀 Servidor Portal Cautivo iniciado
+   Puerto: {}
+   Abre: http://localhost
+   (Presiona Ctrl+C para detener)
+"""
 
-# Nivel de log (DEBUG, INFO, WARNING, ERROR)
-LOG_LEVEL = "INFO"
-
-# Archivo de log
-LOG_FILE = "/tmp/portal_cautivo.log"
+MENSAJE_ERROR_PERMISOS = "❌ ERROR: Necesitas permisos de administrador (sudo) para puerto {}"
+MENSAJE_DETENIDO = "🛑 Servidor detenido"
