@@ -241,26 +241,6 @@ def configurar_firewall():
     ejecutar("sudo iptables -A OUTPUT -p udp --dport 53 -j ACCEPT", "OUTPUT DNS")
     ejecutar("sudo iptables -A INPUT -p udp --sport 53 -j ACCEPT", "INPUT DNS")
     
-    # TAMBIÉN permitir DNS en FORWARD (importante para clientes)
-    ejecutar(
-        f"sudo iptables -A FORWARD -p udp --dport 53 -j ACCEPT",
-        "FORWARD DNS UDP (salida desde clientes)"
-    )
-    ejecutar(
-        f"sudo iptables -A FORWARD -p udp --sport 53 -j ACCEPT",
-        "FORWARD DNS UDP (respuestas a clientes)"
-    )
-    
-    # Permitir DNS TCP también (algunos sistemas lo usan)
-    ejecutar(
-        f"sudo iptables -A FORWARD -p tcp --dport 53 -j ACCEPT",
-        "FORWARD DNS TCP (salida desde clientes)"
-    )
-    ejecutar(
-        f"sudo iptables -A FORWARD -p tcp --sport 53 -j ACCEPT",
-        "FORWARD DNS TCP (respuestas a clientes)"
-    )
-    
     # Permitir OUTPUT hacia Internet (para que Linux tenga acceso)
     print("\n7️⃣  Permitiendo OUTPUT hacia Internet...")
     ejecutar(
