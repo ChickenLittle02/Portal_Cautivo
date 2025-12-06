@@ -188,6 +188,17 @@ def configurar():
         f"FORWARD {internet} → {hotspot} (retorno)"
     )
     
+    ejecutar(
+        f"iptables -P FORWARD DROP",
+        f"Politica predeterminada de portal cautivo"
+    )
+
+    ejecutar(
+        f"iptables -F FORWARD",
+        f"Elimina toda ruta de compartir internet"
+    )
+
+
     # 6. Puertos (HTTP + DNS)
     print("\n6️⃣  Abriendo puertos (HTTP + DNS)...")
     ejecutar("iptables -A FORWARD -p tcp --dport 80 -j ACCEPT", "TCP puerto 80 (salida)")

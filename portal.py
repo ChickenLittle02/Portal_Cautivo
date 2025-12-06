@@ -3,7 +3,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs
 
 PORTAL_IP = "0.0.0.0"
-PORT = 8080
+PORT = 80
 
 # ---------------------------
 # Inicializar BD con un usuario admin
