@@ -6,6 +6,8 @@ Maneja comandos iptables para abrir/cerrar acceso a IPs autenticadas
 import subprocess
 import os
 import platform
+import threading
+import time
 
 # =========================================================
 # VERIFICAR SI SE EJECUTA CON PERMISOS SUDO
@@ -103,6 +105,8 @@ def abrir_acceso_ip(ip_cliente):
     """
     Ejecuta comando iptables para PERMITIR tráfico desde una IP
     
+    SE EJECUTA EN UN HILO SEPARADO para no bloquear la respuesta HTTP
+    
     Agrega DOS reglas:
     1. iptables -A FORWARD -s <IP> -j ACCEPT
        (Permite que la IP salga hacia Internet)
@@ -114,7 +118,7 @@ def abrir_acceso_ip(ip_cliente):
         ip_cliente (str): La IP a autorizar (ej: "192.168.1.100")
     
     Retorna:
-        bool: True si funcionó, False si falló
+        bool: True si se inició el proceso, False si falló
     """
     
     # Verificar permisos
@@ -127,29 +131,35 @@ def abrir_acceso_ip(ip_cliente):
         print(f"   ⚠️  IP {ip_cliente} YA ESTÁ AUTORIZADA (evitando duplicado)")
         return True
     
-    print(f"   🔓 Autorizando IP {ip_cliente}...")
+    # EJECUTAR EN UN HILO SEPARADO para no bloquear
+    def _ejecutar_iptables():
+        print(f"   🔓 Autorizando IP {ip_cliente}... (en hilo separado)")
+        
+        # REGLA 1: Permitir salida (IP → Internet)
+        comando1 = f"iptables -A FORWARD -s {ip_cliente} -j ACCEPT"
+        print(f"      → {comando1}")
+        
+        exito1, _, error1 = ejecutar_comando(comando1)
+        
+        if not exito1:
+            print(f"   ❌ Error al abrir acceso de salida: {error1}")
+            return
+        
+        # REGLA 2: Permitir respuestas (Internet → IP)
+        comando2 = f"iptables -A FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
+        print(f"      → {comando2}")
+        
+        exito2, _, error2 = ejecutar_comando(comando2)
+        
+        if not exito2:
+            print(f"   ⚠️  Error al permitir respuestas (continuando): {error2}")
+        
+        print(f"   ✅ IP {ip_cliente} AUTORIZADA en firewall")
     
-    # REGLA 1: Permitir salida (IP → Internet)
-    comando1 = f"iptables -A FORWARD -s {ip_cliente} -j ACCEPT"
-    print(f"      → {comando1}")
+    # Crear hilo y ejecutar
+    hilo = threading.Thread(target=_ejecutar_iptables, daemon=True)
+    hilo.start()
     
-    exito1, _, error1 = ejecutar_comando(comando1)
-    
-    if not exito1:
-        print(f"   ❌ Error al abrir acceso de salida: {error1}")
-        return False
-    
-    # REGLA 2: Permitir respuestas (Internet → IP)
-    comando2 = f"iptables -A FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
-    print(f"      → {comando2}")
-    
-    exito2, _, error2 = ejecutar_comando(comando2)
-    
-    if not exito2:
-        print(f"   ⚠️  Error al permitir respuestas (continuando): {error2}")
-        # No retornamos False aquí porque la regla 1 ya funcionó
-    
-    print(f"   ✅ IP {ip_cliente} AUTORIZADA")
     return True
 
 
@@ -161,6 +171,8 @@ def cerrar_acceso_ip(ip_cliente):
     """
     Ejecuta comando iptables para DENEGAR tráfico desde una IP
     
+    SE EJECUTA EN UN HILO SEPARADO para no bloquear la respuesta HTTP
+    
     Elimina DOS reglas:
     1. iptables -D FORWARD -s <IP> -j ACCEPT
     2. iptables -D FORWARD -d <IP> -m state --state ESTABLISHED,RELATED -j ACCEPT
@@ -169,7 +181,7 @@ def cerrar_acceso_ip(ip_cliente):
         ip_cliente (str): La IP a bloquear (ej: "192.168.1.100")
     
     Retorna:
-        bool: True si funcionó, False si falló
+        bool: True si se inició el proceso, False si falló
     """
     
     # Verificar permisos
@@ -182,27 +194,34 @@ def cerrar_acceso_ip(ip_cliente):
         print(f"   ⚠️  IP {ip_cliente} NO está autorizada (nada que borrar)")
         return True
     
-    print(f"   🔒 Bloqueando IP {ip_cliente}...")
+    # EJECUTAR EN UN HILO SEPARADO para no bloquear
+    def _ejecutar_iptables():
+        print(f"   🔒 Bloqueando IP {ip_cliente}... (en hilo separado)")
+        
+        # REGLA 1: Eliminar salida (IP → Internet)
+        comando1 = f"iptables -D FORWARD -s {ip_cliente} -j ACCEPT"
+        print(f"      → {comando1}")
+        
+        exito1, _, error1 = ejecutar_comando(comando1)
+        
+        if not exito1:
+            print(f"   ⚠️  Error al eliminar regla de salida: {error1}")
+        
+        # REGLA 2: Eliminar respuestas (Internet → IP)
+        comando2 = f"iptables -D FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
+        print(f"      → {comando2}")
+        
+        exito2, _, error2 = ejecutar_comando(comando2)
+        
+        if not exito2:
+            print(f"   ⚠️  Error al eliminar regla de respuestas: {error2}")
+        
+        print(f"   ✅ IP {ip_cliente} BLOQUEADA en firewall")
     
-    # REGLA 1: Eliminar salida (IP → Internet)
-    comando1 = f"iptables -D FORWARD -s {ip_cliente} -j ACCEPT"
-    print(f"      → {comando1}")
+    # Crear hilo y ejecutar
+    hilo = threading.Thread(target=_ejecutar_iptables, daemon=True)
+    hilo.start()
     
-    exito1, _, error1 = ejecutar_comando(comando1)
-    
-    if not exito1:
-        print(f"   ⚠️  Error al eliminar regla de salida: {error1}")
-    
-    # REGLA 2: Eliminar respuestas (Internet → IP)
-    comando2 = f"iptables -D FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
-    print(f"      → {comando2}")
-    
-    exito2, _, error2 = ejecutar_comando(comando2)
-    
-    if not exito2:
-        print(f"   ⚠️  Error al eliminar regla de respuestas: {error2}")
-    
-    print(f"   ✅ IP {ip_cliente} BLOQUEADA")
     return True
 
 
