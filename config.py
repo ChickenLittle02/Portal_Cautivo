@@ -2,7 +2,6 @@
 """
 config.py - Configuración del Portal Cautivo
 """
-
 import threading
 
 # =========================================================
@@ -11,6 +10,7 @@ import threading
 
 PUERTO = 80
 HOST = '0.0.0.0'
+PORTAL_IP = "192.168.12.1"  # ⚠️ CAMBIAR POR LA IP REAL DEL HOTSPOT
 
 # Cuentas de usuario
 CUENTAS = {

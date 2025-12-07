@@ -8,6 +8,7 @@ import socket
 import threading
 from config import PUERTO, HOST
 from request_handler import manejar_cliente
+from dns_server import iniciar_servidor_dns
 
 # =========================================================
 # FUNCIÓN: INICIAR SERVIDOR
@@ -21,10 +22,15 @@ def iniciar_servidor():
     try:
         socket_servidor.bind((HOST, PUERTO))
         socket_servidor.listen(5)
+        
         print(f"\n🚀 Servidor Portal Cautivo")
-        print(f"   Puerto: {PUERTO}")
+        print(f"   Puerto HTTP: {PUERTO}")
         print(f"   Abre: http://localhost")
         print(f"   (Presiona Ctrl+C para detener)\n")
+        
+        # INICIAR SERVIDOR DNS EN HILO SEPARADO
+        dns_thread = threading.Thread(target=iniciar_servidor_dns, daemon=True)
+        dns_thread.start()
         
         while True:
             socket_cliente, direccion = socket_servidor.accept()
