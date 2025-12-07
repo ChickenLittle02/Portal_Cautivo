@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 firewall.py - Gestión del firewall (iptables)
+SOLUCIÓN DEFINITIVA: Excluir IPs autenticadas de la redirección NAT
 """
 
 import subprocess
@@ -30,30 +31,35 @@ def ejecutar_iptables(comando):
 
 def autorizar_ip(ip_cliente):
     """
-    Autoriza una IP en iptables con DOS reglas:
-    1. Permite salida: FORWARD -s <IP> -j ACCEPT
-    2. Permite respuesta: FORWARD -d <IP> -m state -j ACCEPT
-    Se ejecuta en hilo separado para no bloquear
+    Autoriza una IP completamente:
+    
+    1. En NAT PREROUTING: Excluir de redirección (ACCEPT antes de CAPTIVE_PORTAL)
+    2. En FORWARD: Permitir todo el tráfico
+    
+    Esto asegura que el tráfico de IPs autenticadas NO sea redirigido al portal.
     """
     def _ejecutar():
         print(f"🔓 Autorizando {ip_cliente}...")
         
-        # Regla 1: Salida
-        cmd1 = f"sudo iptables -A FORWARD -s {ip_cliente} -j ACCEPT"
-        if ejecutar_iptables(cmd1):
-            print(f"   → Regla 1 OK")
+        # PASO 1: Excluir de la redirección NAT
+        # -I PREROUTING 1: Insertar en PRIMERA posición
+        # Esto hace que el tráfico de esta IP SALTE la cadena CAPTIVE_PORTAL
+        cmd_nat = f"sudo iptables -t nat -I PREROUTING 1 -s {ip_cliente} -j ACCEPT"
+        if ejecutar_iptables(cmd_nat):
+            print(f"   ✅ NAT: IP excluida de redirección")
         else:
-            print(f"   → Regla 1 FALLO")
+            print(f"   ❌ NAT: FALLO al excluir")
             return
         
-        # Regla 2: Respuesta
-        cmd2 = f"sudo iptables -A FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
-        if ejecutar_iptables(cmd2):
-            print(f"   → Regla 2 OK")
+        # PASO 2: Permitir FORWARD (salida)
+        cmd_forward = f"sudo iptables -I FORWARD 1 -s {ip_cliente} -j ACCEPT"
+        if ejecutar_iptables(cmd_forward):
+            print(f"   ✅ FORWARD: Salida permitida")
         else:
-            print(f"   → Regla 2 FALLO")
+            print(f"   ❌ FORWARD: FALLO")
+            return
         
-        print(f"✅ {ip_cliente} AUTORIZADA")
+        print(f"✅ {ip_cliente} AUTORIZADA - ACCESO COMPLETO A INTERNET")
     
     hilo = threading.Thread(target=_ejecutar, daemon=True)
     hilo.start()
@@ -64,21 +70,42 @@ def autorizar_ip(ip_cliente):
 
 def desautorizar_ip(ip_cliente):
     """
-    Desautoriza una IP en iptables (la elimina)
-    Se ejecuta en hilo separado
+    Desautoriza una IP:
+    1. Eliminar de NAT PREROUTING (vuelve a redirigir al portal)
+    2. Eliminar de FORWARD (bloquea el tráfico)
     """
     def _ejecutar():
         print(f"🔒 Desautorizando {ip_cliente}...")
         
-        # Regla 1: Salida
-        cmd1 = f"sudo iptables -D FORWARD -s {ip_cliente} -j ACCEPT"
-        ejecutar_iptables(cmd1)
+        # Eliminar de NAT
+        cmd_nat = f"sudo iptables -t nat -D PREROUTING -s {ip_cliente} -j ACCEPT"
+        ejecutar_iptables(cmd_nat)
         
-        # Regla 2: Respuesta
-        cmd2 = f"sudo iptables -D FORWARD -d {ip_cliente} -m state --state ESTABLISHED,RELATED -j ACCEPT"
-        ejecutar_iptables(cmd2)
+        # Eliminar de FORWARD
+        cmd_forward = f"sudo iptables -D FORWARD -s {ip_cliente} -j ACCEPT"
+        ejecutar_iptables(cmd_forward)
         
         print(f"✅ {ip_cliente} DESAUTORIZADA")
     
     hilo = threading.Thread(target=_ejecutar, daemon=True)
     hilo.start()
+
+# =========================================================
+# FUNCIÓN: LISTAR REGLAS (DEBUG)
+# =========================================================
+
+def listar_reglas():
+    """Muestra las reglas actuales para debug"""
+    try:
+        print("\n" + "="*60)
+        print("📋 REGLAS NAT PREROUTING")
+        print("="*60)
+        subprocess.run("sudo iptables -t nat -L PREROUTING -n -v --line-numbers", shell=True)
+        
+        print("\n" + "="*60)
+        print("📋 REGLAS FORWARD")
+        print("="*60)
+        subprocess.run("sudo iptables -L FORWARD -n -v --line-numbers", shell=True)
+        print("="*60 + "\n")
+    except Exception as e:
+        print(f"❌ Error listando reglas: {e}")

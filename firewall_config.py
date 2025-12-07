@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 firewall_config.py - Configuración de reglas de firewall
+SOLUCIÓN DEFINITIVA: NO usar redirección NAT, sino reglas condicionales
 """
 
 import subprocess
@@ -35,105 +36,117 @@ def aplicar_firewall(hotspot, internet):
     print("🔧 APLICANDO CONFIGURACIÓN...")
     print("="*60)
     
-    # 1. Limpiar
+    # 1. Limpiar TODO
     print("\n1️⃣  Limpiando reglas anteriores...")
-    ejecutar("iptables -F", "Limpiando INPUT/OUTPUT/FORWARD")
-    ejecutar("iptables -F INPUT")
-    ejecutar("iptables -F OUTPUT")
-    ejecutar("iptables -F FORWARD")
+    ejecutar("iptables -F", "Limpiando filtros")
+    ejecutar("iptables -X", "Limpiando cadenas personalizadas")
     ejecutar("iptables -t nat -F", "Limpiando NAT")
+    ejecutar("iptables -t nat -X", "Limpiando cadenas NAT")
+    ejecutar("iptables -t mangle -F", "Limpiando MANGLE")
+    ejecutar("iptables -t mangle -X", "Limpiando cadenas MANGLE")
     
-    # 2. Políticas ACCEPT (abierto)
-    print("\n2️⃣  Estableciendo políticas (ACCEPT)...")
+    # 2. Políticas por defecto
+    print("\n2️⃣  Estableciendo políticas por defecto...")
     ejecutar("iptables -P INPUT ACCEPT", "INPUT ACCEPT")
     ejecutar("iptables -P OUTPUT ACCEPT", "OUTPUT ACCEPT")
-    ejecutar("iptables -P FORWARD ACCEPT", "FORWARD ACCEPT")
+    ejecutar("iptables -P FORWARD DROP", "FORWARD DROP")
     
     # 3. IP Forward
     print("\n3️⃣  Habilitando IP Forward...")
     ejecutar("sysctl -w net.ipv4.ip_forward=1", "ip_forward = 1")
     
-    # 4. NAT
+    # 4. NAT para internet (MASQUERADE)
     print("\n4️⃣  Configurando NAT...")
     ejecutar(
         f"iptables -t nat -A POSTROUTING -o {internet} -j MASQUERADE",
         f"NAT MASQUERADE en {internet}"
     )
     
-    # 5. FORWARD entre interfaces
-    print("\n5️⃣  Configurando FORWARD entre interfaces...")
-    ejecutar(
-        f"iptables -A FORWARD -i {hotspot} -o {internet} -j ACCEPT",
-        f"FORWARD {hotspot} → {internet}"
-    )
-    ejecutar(
-        f"iptables -A FORWARD -i {internet} -o {hotspot} -m state --state ESTABLISHED,RELATED -j ACCEPT",
-        f"FORWARD {internet} → {hotspot} (retorno)"
-    )
-    ejecutar(
-        f"iptables -P FORWARD DROP",
-        f"Politica predeterminada de portal cautivo"
-    )
-    ejecutar(
-        f"iptables -F FORWARD",
-        f"Elimina toda ruta de compartir internet"
-    )
-    
-    # 6. Puertos (HTTP + DNS)
-    print("\n6️⃣  Abriendo puertos (HTTP + DNS)...")
-    ejecutar("iptables -A FORWARD -p tcp --dport 80 -j ACCEPT", "TCP puerto 80 (salida)")
-    ejecutar("iptables -A FORWARD -p tcp --sport 80 -j ACCEPT", "TCP puerto 80 (respuesta)")
-    ejecutar("iptables -A FORWARD -p udp --dport 53 -j ACCEPT", "UDP puerto 53 (salida)")
-    ejecutar("iptables -A FORWARD -p udp --sport 53 -j ACCEPT", "UDP puerto 53 (respuesta)")
-    ejecutar("iptables -A FORWARD -p tcp --dport 53 -j ACCEPT", "TCP puerto 53 (salida)")
-    ejecutar("iptables -A FORWARD -p tcp --sport 53 -j ACCEPT", "TCP puerto 53 (respuesta)")
-    
-    # 7. Localhost
-    print("\n7️⃣  Permitiendo localhost...")
-    ejecutar("iptables -A INPUT -i lo -j ACCEPT", "INPUT localhost")
-    ejecutar("iptables -A OUTPUT -o lo -j ACCEPT", "OUTPUT localhost")
-    
-    # 8. Bloquear por defecto
-    print("\n8️⃣  Estableciendo política por defecto (DROP)...")
-    ejecutar("iptables -P FORWARD DROP", "FORWARD policy = DROP")
-    
-    # Obtener IP del servidor (interfaz hotspot)
+    # 5. Obtener IP del servidor
     ip_servidor = obtener_ip_interfaz(hotspot)
     
-    # 9. REDIRECCIÓN HTTP (captura de tráfico web)
-    print("\n9️⃣  Configurando redirección HTTP al portal...")
+    # 6. Crear cadena personalizada para portal cautivo
+    print("\n5️⃣  Creando cadena personalizada para portal...")
+    ejecutar("iptables -t nat -N CAPTIVE_PORTAL", "Crear cadena CAPTIVE_PORTAL")
+    
+    # 7. En la cadena CAPTIVE_PORTAL: Redirigir HTTP/HTTPS al portal
+    print("\n6️⃣  Configurando redirecciones en cadena CAPTIVE_PORTAL...")
     ejecutar(
-        f"iptables -t nat -A PREROUTING -i {hotspot} -p tcp --dport 80 -j DNAT --to-destination {ip_servidor}:80",
-        f"Redirigir HTTP al portal ({ip_servidor}:80)"
+        f"iptables -t nat -A CAPTIVE_PORTAL -p tcp --dport 80 -j DNAT --to-destination {ip_servidor}:80",
+        f"Redirigir HTTP → portal"
     )
     ejecutar(
-        f"iptables -t nat -A PREROUTING -i {hotspot} -p tcp --dport 443 -j DNAT --to-destination {ip_servidor}:80",
-        f"Redirigir HTTPS al portal ({ip_servidor}:80)"
+        f"iptables -t nat -A CAPTIVE_PORTAL -p tcp --dport 443 -j DNAT --to-destination {ip_servidor}:80",
+        f"Redirigir HTTPS → portal"
     )
     
-    # 10. REDIRECCIÓN DNS (captura de consultas DNS)
-    print("\n🔟 Configurando redirección DNS al servidor local...")
+    # 8. DNS siempre al servidor local (para todos)
+    print("\n7️⃣  Redirigiendo DNS al servidor local...")
     ejecutar(
         f"iptables -t nat -A PREROUTING -i {hotspot} -p udp --dport 53 -j DNAT --to-destination {ip_servidor}:53",
-        f"Redirigir DNS UDP al servidor ({ip_servidor}:53)"
+        f"Redirigir DNS UDP"
     )
     ejecutar(
         f"iptables -t nat -A PREROUTING -i {hotspot} -p tcp --dport 53 -j DNAT --to-destination {ip_servidor}:53",
-        f"Redirigir DNS TCP al servidor ({ip_servidor}:53)"
+        f"Redirigir DNS TCP"
     )
+    
+    # 9. Por defecto, enviar a la cadena CAPTIVE_PORTAL
+    print("\n8️⃣  Enviando tráfico no autenticado a CAPTIVE_PORTAL...")
+    ejecutar(
+        f"iptables -t nat -A PREROUTING -i {hotspot} -p tcp -m multiport --dports 80,443 -j CAPTIVE_PORTAL",
+        f"Tráfico web → CAPTIVE_PORTAL"
+    )
+    
+    # 10. FORWARD: Permitir conexiones establecidas
+    print("\n9️⃣  Permitiendo respuestas (ESTABLISHED/RELATED)...")
+    ejecutar(
+        f"iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT",
+        f"Permitir respuestas"
+    )
+    
+    # 11. FORWARD: Permitir acceso al portal (todos)
+    print("\n🔟 Permitiendo acceso al servidor portal...")
+    ejecutar(
+        f"iptables -A FORWARD -i {hotspot} -d {ip_servidor} -j ACCEPT",
+        f"Permitir acceso al portal"
+    )
+    
+    # 12. Localhost
+    print("\n1️⃣1️⃣  Permitiendo localhost...")
+    ejecutar("iptables -A INPUT -i lo -j ACCEPT", "INPUT localhost")
+    ejecutar("iptables -A OUTPUT -o lo -j ACCEPT", "OUTPUT localhost")
+    
+    # 13. Las IPs autenticadas se agregarán dinámicamente AQUÍ
+    print("\n1️⃣2️⃣  Espacio para IPs autenticadas (dinámico)...")
+    print("   → Las IPs autenticadas se agregarán con:")
+    print("   → iptables -t nat -I PREROUTING 1 -s [IP] -j ACCEPT")
+    print("   → iptables -I FORWARD 1 -s [IP] -j ACCEPT")
     
     # VERIFICAR
     print("\n" + "="*60)
     print("✅ CONFIGURACIÓN COMPLETADA")
     print("="*60)
     print(f"\n📍 IP del portal: {ip_servidor}")
-    print("   ⚠️  IMPORTANTE: Actualiza esta IP en config.py:")
+    print("   ⚠️  Actualiza esta IP en config.py:")
     print(f"   PORTAL_IP = \"{ip_servidor}\"")
-    print("\n📋 REGLAS ACTUALES:")
-    subprocess.run("echo '🔹 NAT PREROUTING:' && iptables -t nat -L PREROUTING -n", shell=True)
-    subprocess.run("echo '\n🔹 FORWARD:' && iptables -L FORWARD -n", shell=True)
+    
+    print("\n📋 REGLAS NAT:")
+    subprocess.run("iptables -t nat -L -n -v --line-numbers", shell=True)
+    
+    print("\n📋 REGLAS FORWARD:")
+    subprocess.run("iptables -L FORWARD -n -v --line-numbers", shell=True)
     
     print("\n" + "="*60)
-    print("✅ LISTO PARA EJECUTAR:")
+    print("🔑 FUNCIONAMIENTO:")
+    print("   1. Usuario NO autenticado:")
+    print("      → HTTP/HTTPS → Cadena CAPTIVE_PORTAL → Portal")
+    print("   2. Usuario autenticado:")
+    print("      → Regla en PREROUTING -s [IP] -j ACCEPT")
+    print("      → SALTA la cadena CAPTIVE_PORTAL")
+    print("      → Acceso directo a internet")
+    print("="*60)
+    
+    print("\n✅ LISTO PARA EJECUTAR:")
     print("   sudo python3 main.py")
     print("="*60 + "\n")

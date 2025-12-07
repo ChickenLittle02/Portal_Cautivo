@@ -2,15 +2,16 @@
 """
 request_handler.py - Manejador de peticiones HTTP
 Ahora incluye panel de administración y gestión de usuarios
+CON SOPORTE PARA DETECCIÓN AUTOMÁTICA DE PORTALES CAUTIVOS
 """
 
 import json
-from http_utils import obtener_ip_cliente, parsear_peticion, parsear_formulario, enviar_respuesta, enviar_json
+from http_utils import obtener_ip_cliente, parsear_peticion, parsear_formulario, enviar_respuesta, enviar_json, enviar_redireccion
 from html_templates import HTML_LOGIN, HTML_EXITO, HTML_ERROR, HTML_LOGOUT
 from admin_templates import generar_panel_admin, HTML_ACCESS_DENIED
 from auth import validar_credenciales, obtener_rol, registrar_sesion, cerrar_sesion, es_admin, obtener_usuario_ip
 from firewall import autorizar_ip, desautorizar_ip
-from config import sesiones_activas, sesiones_lock
+from config import sesiones_activas, sesiones_lock, PORTAL_IP
 from user_manager import agregar_usuario, eliminar_usuario, listar_usuarios
 
 # =========================================================
@@ -28,7 +29,67 @@ def manejar_cliente(socket_cliente, direccion):
             return
         
         metodo, ruta, body = parsear_peticion(datos)
+        
+        # Si no se pudo parsear (datos encriptados HTTPS), redirigir
+        if metodo is None or ruta is None:
+            print(f"⚠️  Datos encriptados detectados (HTTPS)")
+            print(f"   → Cerrando conexión (el navegador reintentará con HTTP)")
+            return
+        
         print(f"📨 {metodo} {ruta}")
+        
+        # =====================================================
+        # DETECCIÓN AUTOMÁTICA DE PORTALES CAUTIVOS
+        # =====================================================
+        
+        # Android/Chrome: /generate_204
+        if ruta == "/generate_204" or ruta == "/gen_204":
+            print(f"   → Detección de portal (Android/Chrome)")
+            # Verificar si ya está autenticado
+            with sesiones_lock:
+                autenticado = ip_cliente in sesiones_activas
+            
+            if autenticado:
+                # Ya autenticado: responder 204 (sin portal)
+                print(f"   ✅ Usuario autenticado, responder 204")
+                enviar_respuesta(socket_cliente, "204 No Content", "")
+            else:
+                # No autenticado: redirigir al portal
+                print(f"   🔀 Redirigir al portal de login")
+                enviar_redireccion(socket_cliente, f"http://{PORTAL_IP}/")
+            return
+        
+        # iOS: /hotspot-detect.html
+        if ruta == "/hotspot-detect.html" or ruta == "/library/test/success.html":
+            print(f"   → Detección de portal (iOS)")
+            with sesiones_lock:
+                autenticado = ip_cliente in sesiones_activas
+            
+            if autenticado:
+                print(f"   ✅ Usuario autenticado, responder Success")
+                enviar_respuesta(socket_cliente, "200 OK", "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>")
+            else:
+                print(f"   🔀 Redirigir al portal de login")
+                enviar_redireccion(socket_cliente, f"http://{PORTAL_IP}/")
+            return
+        
+        # Windows: /ncsi.txt, /connecttest.txt
+        if ruta == "/ncsi.txt" or ruta == "/connecttest.txt":
+            print(f"   → Detección de portal (Windows)")
+            with sesiones_lock:
+                autenticado = ip_cliente in sesiones_activas
+            
+            if autenticado:
+                print(f"   ✅ Usuario autenticado, responder Microsoft NCSI")
+                enviar_respuesta(socket_cliente, "200 OK", "Microsoft NCSI")
+            else:
+                print(f"   🔀 Redirigir al portal de login")
+                enviar_redireccion(socket_cliente, f"http://{PORTAL_IP}/")
+            return
+        
+        # =====================================================
+        # RUTAS NORMALES DEL PORTAL
+        # =====================================================
         
         # RUTA: GET / (mostrar login)
         if metodo == "GET" and ruta == "/":
@@ -157,8 +218,8 @@ def manejar_cliente(socket_cliente, direccion):
             enviar_respuesta(socket_cliente, "200 OK", html)
         
         else:
-            print(f"   → 404")
-            enviar_respuesta(socket_cliente, "404 Not Found", "<h1>404</h1>")
+            print(f"   → Redirigir al login (ruta desconocida)")
+            enviar_redireccion(socket_cliente, f"http://{PORTAL_IP}/")
     
     except Exception as e:
         print(f"   ❌ Error: {e}")
